@@ -742,6 +742,93 @@ try:
             comparison_df.to_excel(writer, sheet_name="Summary total comparison", index=False)
             sheets_created += 1
     
+    # Tab 4: Summary table total (NEW - extracts SUMMARY TABLE section from each file)
+    summary_table_data = {}
+    for file in all_data.keys():
+        file_path = os.path.join(bom_dir, file)
+        try:
+            wb = load_workbook(file_path, data_only=True)
+            l11_tab = None
+            for sheet_name in wb.sheetnames:
+                if 'L11 BOM Ntwk' in sheet_name:
+                    l11_tab = sheet_name
+                    break
+            
+            if l11_tab:
+                ws = wb[l11_tab]
+                df = pd.read_excel(file_path, sheet_name=l11_tab, header=None)
+                
+                # Find SUMMARY TABLE section
+                summary_table_start = None
+                for idx, row in df.iterrows():
+                    row_str = ' '.join([str(val) for val in row.values if pd.notna(val)]).upper()
+                    if 'SUMMARY TABLE' in row_str:
+                        summary_table_start = idx
+                        break
+                
+                if summary_table_start is not None and summary_table_start + 1 < len(df):
+                    # Read the summary table section
+                    summary_data = df.iloc[summary_table_start + 1:].copy()
+                    # Find the header row (look for row with Model/PN or Item)
+                    header_row = None
+                    for idx, row in summary_data.iterrows():
+                        row_str = ' '.join([str(val) for val in row.values if pd.notna(val)]).upper()
+                        if 'MODEL/PN' in row_str or 'ITEM' in row_str:
+                            header_row = idx
+                            break
+                    
+                    if header_row is not None and header_row + 1 < len(summary_data):
+                        summary_data.columns = summary_data.iloc[header_row].values
+                        summary_data = summary_data.iloc[header_row + 1:].reset_index(drop=True)
+                        
+                        # Extract Model/PN and quantity
+                        for idx, row in summary_data.iterrows():
+                            model_pn = row.get('Model/PN') or row.get('Item')
+                            description = row.get('Description')
+                            quantity = row.get('Sub-Total') or row.get('Subtotal') or row.get('Count') or row.get('Quantity')
+                            
+                            if model_pn and pd.notna(quantity):
+                                try:
+                                    qty = float(quantity)
+                                    if model_pn not in summary_table_data:
+                                        summary_table_data[model_pn] = {
+                                            'Model/PN': model_pn,
+                                            'Description': description if pd.notna(description) else ''
+                                        }
+                                    summary_table_data[model_pn][file] = qty
+                                except (ValueError, TypeError):
+                                    pass
+            
+            wb.close()
+        except Exception as e:
+            print(f"  Warning: Could not read SUMMARY TABLE from {file}: {e}")
+    
+    if summary_table_data:
+        summary_table_df = pd.DataFrame.from_dict(summary_table_data, orient='index')
+        summary_table_df.reset_index(drop=True, inplace=True)
+        
+        # Reorder columns
+        file_cols = [col for col in summary_table_df.columns if col in all_data.keys()]
+        other_cols = [col for col in summary_table_df.columns if col not in file_cols]
+        column_order = other_cols + file_cols
+        summary_table_df = summary_table_df[column_order]
+        
+        # Add total column
+        summary_table_df['Total'] = summary_table_df[file_cols].sum(axis=1)
+        
+        # Add number of files row
+        num_buildings = len(all_data)
+        buildings_row = {col: '' for col in summary_table_df.columns}
+        buildings_row['Model/PN'] = 'Number of Files Processed'
+        buildings_row['Total'] = num_buildings
+        summary_table_df = pd.concat([
+            pd.DataFrame([buildings_row]), 
+            summary_table_df
+        ], ignore_index=True)
+        
+        summary_table_df.to_excel(writer, sheet_name="Summary table total", index=False)
+        sheets_created += 1
+    
     writer.close()
     
     print(f"Successfully created {sheets_created} summary tabs")
@@ -752,6 +839,7 @@ try:
     print(f"  1. Summary per sections - Item quantities per section per file")
     print(f"  2. Summary Total - Total quantities per file and grand total")
     print(f"  3. Summary total comparison - Comparison of file sections vs calculated totals")
+    print(f"  4. Summary table total - Summary Total section from each file")
 
 except Exception as e:
     print(f"Error creating Excel file: {e}")
