@@ -98,7 +98,7 @@ def categorize_item_refined(model_pn, description):
         'SN6600', 'SN5600', 'SN4600', 'SN3800', 'SN3400', 'SN2700', 'SN2201', 'SN2100', 'SN2000',
         'SN4700', 'SN4200', 'SN4000', 'SN3700', 'SN3600', 'SN3500', 'SN3400', 'SN2700',
         'N9K', 'N3K', 'N2K', 'N5K', 'N7K', 'N9K-C', 'N3K-C',
-        'VR72', 'VR', 'Mellanox', 'NVIDIA'
+        'SPECTRUM', 'NVIDIA'
     ]
     
     switch_keywords = [
@@ -109,15 +109,15 @@ def categorize_item_refined(model_pn, description):
     ]
     
     # Transceivers - check for specific transceiver model patterns and keywords
+    # Make these more specific to avoid matching switches
     transceiver_model_patterns = [
-        '980-9I', '980-', '920-9N', 'C4X6C', 'D3P20', '21RKC', '8R3F'
+        '980-9I', 'C4X6C', 'D3P20', '21RKC', '8R3F', 'MMS1V'
     ]
     
     transceiver_keywords = [
         'TRANSCEIVER', 'OPTIC', 'SR4', 'LR4', 'DR4',
-        'SR8', 'LR8', 'FR4', 'CR4', 'CWDM', 'DWDM', 'OSFP', 'QSFPDD',
+        'SR8', 'LR8', 'FR4', 'CR4', 'CWDM', 'DWDM', 'QSFPDD',
         'QSFP-DD', 'SFP28', 'SFP56', 'SFP+', 'XFP', 'XENPAK', 'GBIC',
-        '800G', '400G', '200G', '100G', '40G', '25G', '10G', '1G',
         'LC-LC', 'LC-SC', 'SC-SC', '1310NM', '850NM', '1550NM'
     ]
     
@@ -131,14 +131,15 @@ def categorize_item_refined(model_pn, description):
         'TWINAX', 'TWIN-AX', 'CAT6', 'CAT6A', 'CAT7', 'CAT8', 'CAT 6',
         'FIBER PATCH', 'COPPER PATCH', 'MPO CABLE', 'LC CABLE', 'SC CABLE',
         'OM3', 'OM4', 'OM5', 'OS2', 'MMF', 'SMF', 'APC', 'UPC',
-        'MPO12', 'MPO8', 'MPO24', 'MPO16'
+        'MPO12', 'MPO8', 'MPO24', 'MPO16', 'JUMPER', 'JUMPER CABLE', 'JUMPER CORD',
+        'PATCH PANEL', 'XCVR TO LC', 'XCVR TO', 'LC PATCH', 'MPO-4XLC'
     ]
     
     # Racks
     rack_keywords = [
         'RACK', 'CABINET', 'ENCLOSURE', 'SHELF', 'CHASSIS', 'NtwkRack', 'NTWRACK',
         'GPU RACK', 'GPU RACKS', 'RAINWATER', 'MGX', 'IR7044', 'IR7050', 'IR9048', 'IR9148', 'IR9149', 'IR9053',
-        '48U', '44U', '50U', '53H', '750MM', '1200MM'
+        '48U', '44U', '50U', '53H', '750MM', '1200MM', 'VR72'
     ]
     
     # Jumpers
@@ -154,7 +155,7 @@ def categorize_item_refined(model_pn, description):
     # Panels
     panel_keywords = [
         'PANEL', 'PATCH PANEL', 'FIBER PANEL', 'COPPER PANEL', 'FIBERPANEL',
-        'FILLER PANEL', 'BLANKING PANEL'
+        'FILLER PANEL', 'BLANKING PANEL', 'FIBERPANEL - 2U', '2U MOUNT PANELS'
     ]
     
     # Shuffle components
@@ -168,25 +169,37 @@ def categorize_item_refined(model_pn, description):
     if any(keyword in description_str for keyword in shuffle_keywords):
         return 'Shuffle'
     
-    # Then check for transceivers by model pattern (highest priority for 920-9N)
-    if any(pattern in model_pn_str for pattern in transceiver_model_patterns):
-        return 'Transceiver'
+    # Then check for panels
+    if any(keyword in combined for keyword in panel_keywords):
+        return 'Panel'
+    
+    # Then check for cables by keywords (highest priority to catch patch cables, jumpers)
+    if any(keyword in combined for keyword in cable_keywords):
+        return 'Cable'
     
     # Then check for cables by model pattern
     if any(pattern in model_pn_str for pattern in cable_model_patterns):
         return 'Cable'
     
-    # Then check for cables by keywords
-    if any(keyword in combined for keyword in cable_keywords):
-        return 'Cable'
+    # Then check for racks
+    if any(keyword in combined for keyword in rack_keywords):
+        return 'Rack'
     
-    # Then check for switches by model pattern
+    # Then check for switches by model pattern (higher priority than transceivers)
     if any(pattern in model_pn_str for pattern in switch_model_patterns):
         return 'Switch'
     
     # Then check for switches by keywords
     if any(keyword in description_str for keyword in switch_keywords):
         return 'Switch'
+    
+    # Then check for transceivers by model pattern
+    if any(pattern in model_pn_str for pattern in transceiver_model_patterns):
+        return 'Transceiver'
+    
+    # Then check for transceivers by keywords
+    if any(keyword in combined for keyword in transceiver_keywords):
+        return 'Transceiver'
     
     # Then check for transceivers by keywords
     if any(keyword in combined for keyword in transceiver_keywords):
